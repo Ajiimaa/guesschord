@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>和音当てゲーム</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .game-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #3498db;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 0 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .notes-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .note-btn {
+            margin: 5px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 14px;
+            background-color: #f8f9fa;
+            border: 2px solid #dee2e6;
+            color: #212529;
+            transition: all 0.2s;
+        }
+        .note-btn:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        .selected {
+            background-color: #e74c3c !important;
+            border-color: #c0392b !important;
+            color: white !important;
+        }
+        .result {
+            text-align: center;
+            font-size: 18px;
+            margin: 20px 0;
+            min-height: 50px;
+        }
+        .correct {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .incorrect {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .answer-container {
+            text-align: center;
+            font-size: 24px;
+            margin: 20px 0;
+            min-height: 40px;
+        }
+        .chord-notes {
+            text-align: center;
+            font-size: 18px;
+            margin: 10px 0;
+            min-height: 30px;
+        }
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #eef8ff;
+            border-radius: 5px;
+            border-left: 5px solid #3498db;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        .highlight {
+            display: inline-block;
+            margin: 0 3px;
+            padding: 2px 6px;
+            background-color: #f0f0f0;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>和音当てゲーム</h1>
+    
+    <div class="game-container">
+        <div class="controls">
+            <button id="playChord">和音を再生</button>
+            <button id="checkAnswer" disabled>回答する</button>
+            <button id="nextChord" disabled>次の問題</button>
+        </div>
+        
+        <div class="notes-container" id="notesContainer">
+            <!-- ノートボタンはJavaScriptで生成します -->
+        </div>
+        
+        <div class="result" id="result"></div>
+        <div class="answer-container" id="answerDisplay"></div>
+        <div class="chord-notes" id="chordNotes"></div>
+        
+        <div class="stats">
+            <div>正解数: <span id="correctCount">0</span></div>
+            <div>問題数: <span id="totalCount">0</span></div>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <h3>遊び方</h3>
+        <ol>
+            <li>「和音を再生」ボタンをクリックして、和音を聴きます。</li>
+            <li>和音を構成する音（2〜4音）を選びます。</li>
+            <li>「回答する」ボタンをクリックして、答え合わせをします。</li>
+            <li>回答後も「和音を再生」ボタンで何度でも和音を聴くことができます。</li>
+            <li>「次の問題」ボタンをクリックして、次の和音に進みます。</li>
+        </ol>
+        <p>正解すると、和音の名前が表示されます。不正解の場合は、正しい構成音も表示されます。たくさん練習して、耳を鍛えましょう！</p>
+    </div>
+
+    <script>
+        // Tone.jsをロード
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.30/Tone.js';
+        script.onload = initializeGame;
+        document.head.appendChild(script);
+
+        // 音名データ
+        const noteNames = [
+            'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
+        ];
+        
+        // 日本語の音名も用意
+        const japaneseNoteNames = [
+            'ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'
+        ];
+        
+        // コード定義
+        const chords = [
+            { name: 'メジャー(長三和音)', intervals: [0, 4, 7] },
+            { name: 'マイナー(短三和音)', intervals: [0, 3, 7] },
+            { name: '増三和音', intervals: [0, 4, 8] },
+            { name: '減三和音', intervals: [0, 3, 6] },
+            { name: 'サスペンデッド4th', intervals: [0, 5, 7] },
+            { name: 'メジャー7th', intervals: [0, 4, 7, 11] },
+            { name: 'マイナー7th', intervals: [0, 3, 7, 10] },
+            { name: 'ドミナント7th', intervals: [0, 4, 7, 10] },
+            { name: '6th', intervals: [0, 4, 7, 9] },
+            { name: 'マイナー6th', intervals: [0, 3, 7, 9] }
+        ];
+        
+        let synth;
+        let currentChord = null;
+        let selectedNotes = [];
+        let correctCount = 0;
+        let totalCount = 0;
+        let hasAnswered = false;
+        
+        function initializeGame() {
+            // シンセの初期化
+            synth = new Tone.PolySynth(Tone.Synth).toDestination();
+            
+            // ノートボタンの生成
+            const notesContainer = document.getElementById('notesContainer');
+            for (let i = 0; i < noteNames.length; i++) {
+                const button = document.createElement('button');
+                button.classList.add('note-btn');
+                button.textContent = noteNames[i] + '\n' + japaneseNoteNames[i];
+                button.dataset.note = i;
+                button.addEventListener('click', toggleNote);
+                notesContainer.appendChild(button);
+            }
+            
+            // イベントリスナーのセットアップ
+            document.getElementById('playChord').addEventListener('click', playCurrentChord);
+            document.getElementById('checkAnswer').addEventListener('click', checkAnswer);
+            document.getElementById('nextChord').addEventListener('click', generateNewChord);
+            
+            // 最初の和音を生成
+            generateNewChord();
+        }
+        
+        function generateNewChord() {
+            // 前の選択をリセット
+            resetSelection();
+            
+            // ランダム要素の生成
+            const rootNote = Math.floor(Math.random() * 12);
+            const chordType = Math.floor(Math.random() * chords.length);
+            
+            // 現在の和音を設定
+            currentChord = {
+                root: rootNote,
+                type: chordType,
+                notes: chords[chordType].intervals.map(interval => (rootNote + interval) % 12)
+            };
+            
+            // UI更新
+            document.getElementById('result').textContent = '和音を聴いて構成音を選んでください';
+            document.getElementById('result').className = 'result';
+            document.getElementById('answerDisplay').textContent = '';
+            document.getElementById('chordNotes').textContent = '';
+            document.getElementById('checkAnswer').disabled = true;
+            document.getElementById('nextChord').disabled = true;
+            document.getElementById('playChord').disabled = false;
+            
+            // 回答済みフラグをリセット
+            hasAnswered = false;
+        }
+        
+        function playCurrentChord() {
+            if (!currentChord) return;
+            
+            // オクターブを含めた実際の音を生成
+            const octave = 4;
+            const notesToPlay = currentChord.notes.map(note => {
+                const noteName = noteNames[note];
+                return noteName + octave;
+            });
+            
+            // シンセで和音を再生
+            synth.triggerAttackRelease(notesToPlay, "2n");
+            
+            // 回答前なら回答ボタンを有効化
+            if (!hasAnswered) {
+                document.getElementById('checkAnswer').disabled = selectedNotes.length === 0;
+            }
+        }
+        
+        function toggleNote(event) {
+            // 回答済みの場合は何もしない
+            if (hasAnswered) return;
+            
+            const noteIndex = parseInt(event.target.dataset.note);
+            const index = selectedNotes.indexOf(noteIndex);
+            
+            if (index === -1) {
+                // 音を追加
+                selectedNotes.push(noteIndex);
+                event.target.classList.add('selected');
+            } else {
+                // 音を削除
+                selectedNotes.splice(index, 1);
+                event.target.classList.remove('selected');
+            }
+            
+            // 選択した音を再生 (音量を下げる)
+            const noteName = noteNames[noteIndex] + '4';
+            const quieterSynth = new Tone.Synth().toDestination();
+            quieterSynth.volume.value = -10; // 音量を下げる
+            quieterSynth.triggerAttackRelease(noteName, "8n");
+            
+            // UI更新
+            document.getElementById('checkAnswer').disabled = selectedNotes.length === 0;
+        }
+        
+        function checkAnswer() {
+            if (!currentChord) return;
+            
+            // 回答が正しいか確認
+            const isCorrect = compareArrays(selectedNotes.sort(), currentChord.notes.sort());
+            
+            // 統計を更新
+            totalCount++;
+            if (isCorrect) correctCount++;
+            
+            document.getElementById('correctCount').textContent = correctCount;
+            document.getElementById('totalCount').textContent = totalCount;
+            
+            // 結果表示
+            const resultElement = document.getElementById('result');
+            const answerElement = document.getElementById('answerDisplay');
+            const chordNotesElement = document.getElementById('chordNotes');
+            
+            if (isCorrect) {
+                resultElement.textContent = '正解です！';
+                resultElement.className = 'result correct';
+            } else {
+                resultElement.textContent = '不正解です。';
+                resultElement.className = 'result incorrect';
+            }
+            
+            // 正解の和音名を表示
+            const rootName = noteNames[currentChord.root];
+            const chordName = chords[currentChord.type].name;
+            answerElement.textContent = rootName + ' ' + chordName;
+            
+            // 構成音を表示
+            const noteDisplays = [];
+            currentChord.notes.forEach(noteIndex => {
+                const engNote = noteNames[noteIndex];
+                const jpNote = japaneseNoteNames[noteIndex];
+                noteDisplays.push(`<span class="highlight">${engNote}(${jpNote})</span>`);
+            });
+            
+            chordNotesElement.innerHTML = '構成音: ' + noteDisplays.join(' ');
+            
+            // 不正解の場合、正しい構成音を再生
+            if (!isCorrect) {
+                setTimeout(() => {
+                    playCurrentChord();
+                }, 1000);
+            }
+            
+            // UI更新
+            document.getElementById('checkAnswer').disabled = true;
+            document.getElementById('nextChord').disabled = false;
+            document.getElementById('playChord').disabled = false; // 回答後も再生ボタンは使える
+            
+            // 回答済みフラグを設定
+            hasAnswered = true;
+            
+            // ノートの選択を無効化（視覚的にはそのままで）
+            highlightCorrectNotes();
+        }
+        
+        function highlightCorrectNotes() {
+            // 全てのノートボタンをリセット（選択状態は維持）
+            const noteButtons = document.querySelectorAll('.note-btn');
+            
+            // 正解の音をハイライト表示
+            currentChord.notes.forEach(noteIndex => {
+                const button = noteButtons[noteIndex];
+                if (!button.classList.contains('selected')) {
+                    button.style.border = '2px solid #27ae60';
+                }
+            });
+            
+            // 不正解の音を強調表示
+            selectedNotes.forEach(noteIndex => {
+                if (!currentChord.notes.includes(noteIndex)) {
+                    const button = noteButtons[noteIndex];
+                    button.style.border = '2px solid #e74c3c';
+                }
+            });
+        }
+        
+        function resetSelection() {
+            // 選択状態をリセット
+            selectedNotes = [];
+            const noteButtons = document.querySelectorAll('.note-btn');
+            noteButtons.forEach(button => {
+                button.classList.remove('selected');
+                button.style.border = '2px solid #dee2e6'; // ボーダーもリセット
+            });
+        }
+        
+        function compareArrays(arr1, arr2) {
+            if (arr1.length !== arr2.length) return false;
+            for (let i = 0; i < arr1.length; i++) {
+                if (arr1[i] !== arr2[i]) return false;
+            }
+            return true;
+        }
+    </script>
+</body>
+</html>

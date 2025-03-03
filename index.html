@@ -157,6 +157,7 @@
             <li>和音を構成する音（2〜4音）を選びます。</li>
             <li>「回答する」ボタンをクリックして、答え合わせをします。</li>
             <li>回答後も「和音を再生」ボタンで何度でも和音を聴くことができます。</li>
+            <li>回答後もドレミの各音を聴くことができます。</li>
             <li>「次の問題」ボタンをクリックして、次の和音に進みます。</li>
         </ol>
         <p>正解すると、和音の名前が表示されます。不正解の場合は、正しい構成音も表示されます。たくさん練習して、耳を鍛えましょう！</p>
@@ -194,6 +195,7 @@
         ];
         
         let synth;
+        let pianoSynth;
         let currentChord = null;
         let selectedNotes = [];
         let correctCount = 0;
@@ -201,7 +203,45 @@
         let hasAnswered = false;
         
         function initializeGame() {
-            // シンセの初期化
+            // ピアノサウンドのシンセの初期化
+            pianoSynth = new Tone.Sampler({
+                urls: {
+                    A0: "A0.mp3",
+                    C1: "C1.mp3",
+                    "D#1": "Ds1.mp3",
+                    "F#1": "Fs1.mp3",
+                    A1: "A1.mp3",
+                    C2: "C2.mp3",
+                    "D#2": "Ds2.mp3",
+                    "F#2": "Fs2.mp3",
+                    A2: "A2.mp3",
+                    C3: "C3.mp3",
+                    "D#3": "Ds3.mp3",
+                    "F#3": "Fs3.mp3",
+                    A3: "A3.mp3",
+                    C4: "C4.mp3",
+                    "D#4": "Ds4.mp3",
+                    "F#4": "Fs4.mp3",
+                    A4: "A4.mp3",
+                    C5: "C5.mp3",
+                    "D#5": "Ds5.mp3",
+                    "F#5": "Fs5.mp3",
+                    A5: "A5.mp3",
+                    C6: "C6.mp3",
+                    "D#6": "Ds6.mp3",
+                    "F#6": "Fs6.mp3",
+                    A6: "A6.mp3",
+                    C7: "C7.mp3",
+                    "D#7": "Ds7.mp3",
+                    "F#7": "Fs7.mp3",
+                    A7: "A7.mp3",
+                    C8: "C8.mp3"
+                },
+                release: 1,
+                baseUrl: "https://tonejs.github.io/audio/salamander/"
+            }).toDestination();
+            
+            // 読み込み完了までの代替シンセ
             synth = new Tone.PolySynth(Tone.Synth).toDestination();
             
             // ノートボタンの生成
@@ -211,7 +251,15 @@
                 button.classList.add('note-btn');
                 button.textContent = noteNames[i] + '\n' + japaneseNoteNames[i];
                 button.dataset.note = i;
-                button.addEventListener('click', toggleNote);
+                button.addEventListener('click', function(event) {
+                    // 音を再生する機能は常に有効
+                    playNoteSound(parseInt(event.target.dataset.note));
+                    
+                    // 回答前のみ選択状態の切り替えを許可
+                    if (!hasAnswered) {
+                        toggleNote(event);
+                    }
+                });
                 notesContainer.appendChild(button);
             }
             
@@ -262,8 +310,13 @@
                 return noteName + octave;
             });
             
-            // シンセで和音を再生
-            synth.triggerAttackRelease(notesToPlay, "2n");
+            // ピアノサンプラーが読み込まれているか確認
+            if (pianoSynth.loaded) {
+                pianoSynth.triggerAttackRelease(notesToPlay, "2n");
+            } else {
+                // 読み込みが完了していない場合は通常のシンセで代用
+                synth.triggerAttackRelease(notesToPlay, "2n");
+            }
             
             // 回答前なら回答ボタンを有効化
             if (!hasAnswered) {
@@ -271,10 +324,22 @@
             }
         }
         
-        function toggleNote(event) {
-            // 回答済みの場合は何もしない
-            if (hasAnswered) return;
+        function playNoteSound(noteIndex) {
+            // 単音を再生
+            const noteName = noteNames[noteIndex] + '4';
             
+            // ピアノサンプラーが読み込まれているか確認
+            if (pianoSynth.loaded) {
+                pianoSynth.triggerAttackRelease(noteName, "8n");
+            } else {
+                // 読み込みが完了していない場合は通常のシンセで代用
+                const quieterSynth = new Tone.Synth().toDestination();
+                quieterSynth.volume.value = -10; // 音量を下げる
+                quieterSynth.triggerAttackRelease(noteName, "8n");
+            }
+        }
+        
+        function toggleNote(event) {
             const noteIndex = parseInt(event.target.dataset.note);
             const index = selectedNotes.indexOf(noteIndex);
             
@@ -287,12 +352,6 @@
                 selectedNotes.splice(index, 1);
                 event.target.classList.remove('selected');
             }
-            
-            // 選択した音を再生 (音量を下げる)
-            const noteName = noteNames[noteIndex] + '4';
-            const quieterSynth = new Tone.Synth().toDestination();
-            quieterSynth.volume.value = -10; // 音量を下げる
-            quieterSynth.triggerAttackRelease(noteName, "8n");
             
             // UI更新
             document.getElementById('checkAnswer').disabled = selectedNotes.length === 0;
@@ -354,7 +413,7 @@
             // 回答済みフラグを設定
             hasAnswered = true;
             
-            // ノートの選択を無効化（視覚的にはそのままで）
+            // 正解の音をハイライト表示
             highlightCorrectNotes();
         }
         
